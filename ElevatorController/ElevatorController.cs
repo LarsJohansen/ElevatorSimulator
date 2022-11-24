@@ -81,16 +81,44 @@ public class ElevatorController
         }
     }
 
-    public void CallElevator(int fromFloor)
+    public void CallElevator(int fromFloor, bool up)
     {
         System.Console.WriteLine($"Elevator {_elevator.Id} is called from floor {fromFloor}");
         if (_elevator.State == ElevatorState.Idle)
         {
             SetDestinationFloor(fromFloor);
         }
-        else if (_elevator.State == ElevatorState.Moving)
+        else if (_elevator.State == ElevatorState.Moving && up)
         {
-            _elevator.NextDestinationFloor = fromFloor;
+            if (_elevator.DestinationFloor > fromFloor && _elevator.CurrentFloor < fromFloor)
+            {
+                _elevator.NextDestinationFloor = _elevator.DestinationFloor;
+                _elevator.DestinationFloor = fromFloor;
+            }
+            else if (_elevator.DestinationFloor < fromFloor && _elevator.CurrentFloor < fromFloor)
+            {
+                _elevator.NextDestinationFloor = fromFloor;
+            }
+            else if (_elevator.DestinationFloor < fromFloor && _elevator.CurrentFloor > fromFloor)
+            {
+                _elevator.NextDestinationFloor = fromFloor;
+            }
+        }
+        else if (_elevator.State == ElevatorState.Moving && !up)
+        {
+            if (_elevator.DestinationFloor > fromFloor && _elevator.CurrentFloor < fromFloor)
+            {
+                _elevator.NextDestinationFloor = fromFloor;
+            }
+            else if (_elevator.DestinationFloor < fromFloor && _elevator.CurrentFloor < fromFloor)
+            {
+                _elevator.NextDestinationFloor = fromFloor;
+            }
+            else if (_elevator.DestinationFloor < fromFloor && _elevator.CurrentFloor > fromFloor)
+            {
+                _elevator.NextDestinationFloor = _elevator.DestinationFloor;
+                _elevator.DestinationFloor = fromFloor;
+            }
         }
     }
 

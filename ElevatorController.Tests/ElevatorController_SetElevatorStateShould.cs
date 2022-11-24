@@ -85,7 +85,7 @@ public class ElevatorController_SetElevatorStateShould
         elevatorController.ElevatorSpeedInSecondsPerFloor = 3;
         // Act
         elevatorController.SetDestinationFloor(3);
-        elevatorController.CallElevator(4);
+        elevatorController.CallElevator(4, true);
         // Assert
         Assert.Equal(11, elevatorController.GetEstimatedTimeOfArrival(4));
     }
@@ -97,49 +97,31 @@ public class ElevatorController_SetElevatorStateShould
         var elevator = new Elevator(1, 3, 0);
         var elevatorController = new ElevatorController(elevator);
         // Act
-        elevatorController.CallElevator(5);
+        elevatorController.CallElevator(5, true);
         // Assert
         Assert.Equal(ElevatorState.Moving, elevator.State);
     }
 
     [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    public void CallElevator_WhenIdle_DestinationShouldBeSet(int value) 
+    [InlineData(1, 8, 3, true, 3)]
+    [InlineData(2, 4, 7, true, 4)]
+    [InlineData(8, 2, 5, true, 2)]
+    [InlineData(5, 1, 6, true, 1)]
+    [InlineData(5, 3, 8, true, 3)]
+    [InlineData(5, 8, 6, false, 8)]
+    [InlineData(8, 2, 4, false, 4)]
+    [InlineData(2, 8, 7, false, 8)]
+    [InlineData(8, 5, 3, false, 5)]    
+    public void CallElevator_WhenMovingAndCalledUp_DestinationShouldBe(int currentFloor, int destinationFloor, int callFloor, bool up, int expectedDestination) 
     {
         // Arrange
-        var elevator = new Elevator(1, 3, 0);
+        var elevator = new Elevator(1, currentFloor, 0);
         var elevatorController = new ElevatorController(elevator);
         // Act
-        elevatorController.CallElevator(value);
+        elevatorController.SetDestinationFloor(destinationFloor);
+        elevatorController.CallElevator(callFloor, up);
         // Assert
-        Assert.Equal(value, elevator.DestinationFloor);
+        Assert.Equal(expectedDestination, elevator.DestinationFloor);
     }
-
-    [Fact]
-    public void CallElevator_WhenMoving_NextDestinationShouldBe5() 
-    {
-        // Arrange
-        var elevator = new Elevator(1, 3, 0);
-        var elevatorController = new ElevatorController(elevator);
-        // Act
-        elevatorController.SetDestinationFloor(3);
-        elevatorController.CallElevator(5);
-        // Assert
-        Assert.Equal(5, elevator.NextDestinationFloor);
-    }
-
-    // [Fact]
-    // public void EmergencyStop_WhenMoving_ShouldBeFailure()
-    // {
-    //     // Arrange
-    //     var elevator = new Elevator(1, 3, 0);
-    //     var elevatorController = new ElevatorController(elevator);
-    //     // Act
-    //     elevatorController.SetDestinationFloor(5);
-    //     elevatorController.EmergencyStop();
-    //     // Assert
-    //     Assert.Equal(ElevatorState.Failure, elevator.State);
-    // }
+    
 }
