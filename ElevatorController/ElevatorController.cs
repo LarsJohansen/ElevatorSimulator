@@ -16,14 +16,32 @@ public class ElevatorController
     {
         _elevator.DestinationFloor = floor;
         _elevator.State = ElevatorState.Moving;
-        Task.Factory.StartNew(() => MoveElevator());
+        _elevator.task = Task.Factory.StartNew(() => MoveElevator(), _elevator.TokenSource.Token);
     }
 
     private void MoveElevator()
     {
         while (_elevator.CurrentFloor != _elevator.DestinationFloor)
         {
+            var ct = _elevator.TokenSource.Token;
+            if (ct.IsCancellationRequested)
+            {
+                System.Console.WriteLine($"Elevator {_elevator.Id}: Emergency stop pressed before starting!");
+                ct.ThrowIfCancellationRequested();
+            }
             Console.WriteLine($"Elevator {_elevator.Id} is moving from {_elevator.CurrentFloor} to {_elevator.DestinationFloor}");
+
+            for (int i = 0; i < ElevatorSpeedInSecondsPerFloor; i++)
+            {
+                Thread.Sleep(1000);
+                ct = _elevator.TokenSource.Token;
+                if (ct.IsCancellationRequested)
+                {
+                    System.Console.WriteLine($"Elevator {_elevator.Id}: Emergency stop pressed while moving!");
+                    return;
+                }
+            }
+
             if (_elevator.CurrentFloor < _elevator.DestinationFloor)
             {
                 _elevator.CurrentFloor++;
@@ -32,12 +50,22 @@ public class ElevatorController
             {
                 _elevator.CurrentFloor--;
             }
-            Thread.Sleep(ElevatorSpeedInSecondsPerFloor * 1000);
+            
         }
 
         _elevator.State = ElevatorState.DoorOpen;
         Console.WriteLine($"Elevator {_elevator.Id} has arrived at {_elevator.CurrentFloor}. Door is open");
-        Thread.Sleep(DoorOpenTimeInSeconds * 1000);
+        
+        for (int i = 0; i < DoorOpenTimeInSeconds; i++)
+        {
+            Thread.Sleep(1000);
+            var ct = _elevator.TokenSource.Token;
+            if (ct.IsCancellationRequested)
+            {
+                System.Console.WriteLine($"Elevator {_elevator.Id}: Emergency stop pressed while door open!");
+                return;
+            }
+        }
 
         if (_elevator.NextDestinationFloor != 0)
         {
@@ -102,11 +130,14 @@ public class ElevatorController
 
     public void EmergencyStop()
     {
+        _elevator.TokenSource.Cancel();
+        Console.WriteLine($"Emergency stop pressed for elevator {_elevator.Id}!");
+        if (_elevator.task != null)
+        {
+            _elevator.task.Wait();
+        }
+
         _elevator.State = ElevatorState.Failure;
-        _elevator.DestinationFloor = 0;
-        _elevator.NextDestinationFloor = 0;
-        Console.WriteLine($"Elevator {_elevator.Id} is in failure state");
+        Console.WriteLine($"Elevator {_elevator.Id} is stuck in failure state on floor {_elevator.CurrentFloor}");
     }
-
-
 }
