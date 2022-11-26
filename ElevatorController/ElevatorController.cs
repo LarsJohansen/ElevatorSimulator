@@ -1,171 +1,36 @@
 ﻿namespace ElevatorController;
 public class ElevatorController
 {
-    //public Dictionary<int, Elevator> Elevators { get; set; }
-    private Elevator _elevator;
-    public int ElevatorSpeedInSecondsPerFloor { get; set; }
-    public int DoorOpenTimeInSeconds { get; set; }
-    public ElevatorController(Elevator elevator)
+    public static int ElevatorSpeedInSecondsPerFloor { get; private set; }
+    public static int DoorOpenTimeInSeconds { get; private set; } = 5;
+    public ElevatorController(Elevator elevator, int elevatorSpeedInSecondsPerFloor = 3, int doorOpenTimeInSeconds = 5)
     {
-        _elevator = elevator;
-        ElevatorSpeedInSecondsPerFloor = 3;
-        DoorOpenTimeInSeconds = 5;
+        ElevatorSpeedInSecondsPerFloor = elevatorSpeedInSecondsPerFloor;
+        DoorOpenTimeInSeconds = doorOpenTimeInSeconds;
+    }
+    public void CallElevator(Elevator elevator, int fromFloor, bool up)
+    {
+        elevator.AddDestinationFloor(fromFloor, up);
     }
 
-    public void SetDestinationFloor(int floor)
+    public int GetEstimatedTimeOfArrival(Elevator elevator, int floor)
     {
-        _elevator.DestinationFloor = floor;
-        _elevator.State = ElevatorState.Moving;
-        _elevator.task = Task.Factory.StartNew(() => MoveElevator(), _elevator.TokenSource.Token);
-    }
-
-    private void MoveElevator()
-    {
-        while (_elevator.CurrentFloor != _elevator.DestinationFloor)
+        if (elevator.State == ElevatorState.Idle)
         {
-            var ct = _elevator.TokenSource.Token;
-            if (ct.IsCancellationRequested)
-            {
-                System.Console.WriteLine($"Elevator {_elevator.Id}: Emergency stop pressed before starting!");
-                ct.ThrowIfCancellationRequested();
-            }
-            Console.WriteLine($"Elevator {_elevator.Id} is moving from {_elevator.CurrentFloor} to {_elevator.DestinationFloor}");
-
-            for (int i = 0; i < ElevatorSpeedInSecondsPerFloor; i++)
-            {
-                Thread.Sleep(1000);
-                ct = _elevator.TokenSource.Token;
-                if (ct.IsCancellationRequested)
-                {
-                    System.Console.WriteLine($"Elevator {_elevator.Id}: Emergency stop pressed while moving!");
-                    return;
-                }
-            }
-
-            if (_elevator.CurrentFloor < _elevator.DestinationFloor)
-            {
-                _elevator.CurrentFloor++;
-            }
-            else
-            {
-                _elevator.CurrentFloor--;
-            }
-            
+            return Math.Abs(elevator.CurrentFloor - floor) * ElevatorSpeedInSecondsPerFloor;
         }
-
-        _elevator.State = ElevatorState.DoorOpen;
-        Console.WriteLine($"Elevator {_elevator.Id} has arrived at {_elevator.CurrentFloor}. Door is open");
-        
-        for (int i = 0; i < DoorOpenTimeInSeconds; i++)
+        else if (elevator.NextFloor == floor) 
         {
-            Thread.Sleep(1000);
-            var ct = _elevator.TokenSource.Token;
-            if (ct.IsCancellationRequested)
-            {
-                System.Console.WriteLine($"Elevator {_elevator.Id}: Emergency stop pressed while door open!");
-                return;
-            }
-        }
-
-        if (_elevator.NextDestinationFloor != 0)
-        {
-            var nextFloor = _elevator.NextDestinationFloor;
-            _elevator.NextDestinationFloor = 0;
-            SetDestinationFloor(nextFloor);
-        }
-        else
-        {
-            _elevator.DestinationFloor = 0;
-            _elevator.State = ElevatorState.Idle;
-            Console.WriteLine($"Elevator {_elevator.Id} is idle");
-        }
-    }
-
-    public void CallElevator(int fromFloor, bool up)
-    {
-        System.Console.WriteLine($"Elevator {_elevator.Id} is called from floor {fromFloor}");
-        if (_elevator.State == ElevatorState.Idle)
-        {
-            SetDestinationFloor(fromFloor);
-        }
-        else if (_elevator.State == ElevatorState.Moving && up)
-        {
-            if (_elevator.DestinationFloor > fromFloor && _elevator.CurrentFloor < fromFloor)
-            {
-                _elevator.NextDestinationFloor = _elevator.DestinationFloor;
-                _elevator.DestinationFloor = fromFloor;
-            }
-            else if (_elevator.DestinationFloor < fromFloor && _elevator.CurrentFloor < fromFloor)
-            {
-                _elevator.NextDestinationFloor = fromFloor;
-            }
-            else if (_elevator.DestinationFloor < fromFloor && _elevator.CurrentFloor > fromFloor)
-            {
-                _elevator.NextDestinationFloor = fromFloor;
-            }
-        }
-        else if (_elevator.State == ElevatorState.Moving && !up)
-        {
-            if (_elevator.DestinationFloor > fromFloor && _elevator.CurrentFloor < fromFloor)
-            {
-                _elevator.NextDestinationFloor = fromFloor;
-            }
-            else if (_elevator.DestinationFloor < fromFloor && _elevator.CurrentFloor < fromFloor)
-            {
-                _elevator.NextDestinationFloor = fromFloor;
-            }
-            else if (_elevator.DestinationFloor < fromFloor && _elevator.CurrentFloor > fromFloor)
-            {
-                _elevator.NextDestinationFloor = _elevator.DestinationFloor;
-                _elevator.DestinationFloor = fromFloor;
-            }
-        }
-    }
-
-    public Direction GetDirection()
-    {
-        if (_elevator.CurrentFloor < _elevator.DestinationFloor)
-        {
-            return Direction.Up;
-        }
-        else if (_elevator.CurrentFloor > _elevator.DestinationFloor)
-        {
-            return Direction.Down;
-        }
-        else
-        {
-            return Direction.Idle;
-        }
-    }
-
-    public int GetEstimatedTimeOfArrival(int floor)
-    {
-        if (_elevator.State == ElevatorState.Idle)
-        {
-            return Math.Abs(_elevator.CurrentFloor - floor) * ElevatorSpeedInSecondsPerFloor;
-        }
-        else if (_elevator.DestinationFloor == floor) 
-        {
-            return Math.Abs(_elevator.CurrentFloor - floor) * ElevatorSpeedInSecondsPerFloor;
+            return Math.Abs(elevator.CurrentFloor - floor) * ElevatorSpeedInSecondsPerFloor;
         }
         else 
         {
-            return Math.Abs(_elevator.CurrentFloor - _elevator.DestinationFloor) * ElevatorSpeedInSecondsPerFloor + DoorOpenTimeInSeconds
-            + Math.Abs(_elevator.DestinationFloor - floor) * ElevatorSpeedInSecondsPerFloor;
+            return Math.Abs(elevator.CurrentFloor - elevator.NextFloor)
+                   * ElevatorSpeedInSecondsPerFloor
+                   + DoorOpenTimeInSeconds
+                   + Math.Abs(elevator.NextFloor - floor)
+                   * ElevatorSpeedInSecondsPerFloor;
         }
     }
-        
-
-    public void EmergencyStop()
-    {
-        _elevator.TokenSource.Cancel();
-        Console.WriteLine($"Emergency stop pressed for elevator {_elevator.Id}!");
-        if (_elevator.task != null)
-        {
-            _elevator.task.Wait();
-        }
-
-        _elevator.State = ElevatorState.Failure;
-        Console.WriteLine($"Elevator {_elevator.Id} is stuck in failure state on floor {_elevator.CurrentFloor}");
-    }
+    
 }
