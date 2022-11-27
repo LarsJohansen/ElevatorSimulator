@@ -5,15 +5,13 @@ namespace ElevatorController
     public class Elevator
     {
         public int Id { get; set; }
-        public int CurrentFloor { get; set; } 
-        public ConcurrentQueue<int> DestinationFloors { get; set; } = new ConcurrentQueue<int>();
-        public ConcurrentQueue<int> NextDirectionDestinationFloors { get; set; } = new ConcurrentQueue<int>();
+        public int CurrentFloor { get; set; }
+        public ConcurrentQueue<int> DestinationFloors { get; set; } = new();
+        public ConcurrentQueue<int> NextDirectionDestinationFloors { get; set; } = new();
         public Direction Direction { get; private set; } = Direction.Stationary;
         public ElevatorState State { get; set; } = ElevatorState.Idle;
         public int NextFloor { get; set; }
-        //TODO: Vurder å fjerne denne og bruke lokale variabler i stedet
-        public Task? task { get; set; }
-        private static CancellationTokenSource _tokenSource = new CancellationTokenSource();
+        private static readonly CancellationTokenSource _tokenSource = new();
 
         public Elevator(int id, int currentFloor = 1)
         {
@@ -23,11 +21,14 @@ namespace ElevatorController
 
         public void AddDestinationFloor(int floor, bool up)
         {
-            var floorList = new List<int>(){floor};
+            var floorList = new List<int>() { floor };
             AddDestinationFloors(floorList, up);
         }
+
         public void AddDestinationFloors(List<int> floors, bool up)
         {
+            // If the elevator is idle on floor one we can just add the floors to the destination floors queue in ascending order
+            // This assumes that there are no negative floors, which is currently not checked for.
             if (State == ElevatorState.Idle && CurrentFloor == 1)
             {
                 foreach (var floor in floors.OrderBy(x => x))
@@ -37,9 +38,11 @@ namespace ElevatorController
                 NextFloor = DestinationFloors.TryDequeue(out var nextFloor) ? nextFloor : 0;
                 StartElevator();
             }
+            // If the elevator is idle on a floor other than one, we need to sort the floors depending on which direction the elevator
+            // is asked to go. 
             else if (State == ElevatorState.Idle && CurrentFloor != 1)
             {
-                if (up) 
+                if (up)
                 {
                     SortForGoingUp(floors, up);
                 }
@@ -49,6 +52,7 @@ namespace ElevatorController
                 }
                 StartElevator();
             }
+            // If the elevator is moving we need to sort the floors depending on which direction the elevator is moving. 
             else
             {
                 if (Direction == Direction.Up)
@@ -66,15 +70,18 @@ namespace ElevatorController
         {
             State = ElevatorState.Moving;
             SetDirection();
-            task = Task.Factory.StartNew(() => MoveElevator(), _tokenSource.Token);
+            Task.Factory.StartNew(() => MoveElevator(), _tokenSource.Token);
         }
 
         private void SortForGoingDown(List<int> floors, bool up)
         {
             if (!up)
             {
+                // Elevator is going down and we are going down
+                // First add the floors that are below the current floor in descending order
+                // Then add the floors that are above the current floor in ascending order
                 List<int> mergedFloors = MergeFloors(floors);
-                foreach (var floor in mergedFloors.OrderBy(x => x).Reverse())
+                foreach (var floor in mergedFloors.OrderByDescending(x => x))
                 {
                     if (floor < CurrentFloor)
                     {
@@ -93,15 +100,16 @@ namespace ElevatorController
                     NextFloor = DestinationFloors.TryDequeue(out var nextFloor) ? nextFloor : 0;
                 }
             }
-            else 
+            else
             {
+                // Elevator is going down and we are going up
+                // Enqueue the floors in queue that will be processed after current directions queue is empty
                 foreach (var floor in floors.OrderBy(x => x))
                 {
                     NextDirectionDestinationFloors.Enqueue(floor);
                 }
             }
         }
-
 
         private void SortForGoingUp(List<int> floors, bool up)
         {
@@ -115,7 +123,7 @@ namespace ElevatorController
                         DestinationFloors.Enqueue(floor);
                     }
                 }
-                foreach (var floor in mergedFloors.OrderBy(x => x).Reverse())
+                foreach (var floor in mergedFloors.OrderByDescending(x => x))
                 {
                     if (floor < CurrentFloor)
                     {
@@ -127,17 +135,18 @@ namespace ElevatorController
                     NextFloor = DestinationFloors.TryDequeue(out var nextFloor) ? nextFloor : 0;
                 }
             }
-            else 
+            else
             {
-                foreach (var floor in floors.OrderBy(x => x).Reverse())
+                foreach (var floor in floors.OrderByDescending(x => x))
                 {
                     NextDirectionDestinationFloors.Enqueue(floor);
                 }
             }
         }
+
         private List<int> MergeFloors(List<int> floors)
         {
-            var tempFloors = new List<int>();
+            List<int> tempFloors = new();
             while (DestinationFloors.TryDequeue(out int floor))
             {
                 tempFloors.Add(floor);
@@ -156,6 +165,7 @@ namespace ElevatorController
             if (NextFloor == 0)
             {
                 State = ElevatorState.Idle;
+                SetDirection();
                 return;
             }
             while (CurrentFloor != NextFloor)
@@ -164,7 +174,9 @@ namespace ElevatorController
                 var ct = _tokenSource.Token;
                 if (ct.IsCancellationRequested)
                 {
-                    System.Console.WriteLine($"Elevator {Id}: Emergency stop pressed before starting!");
+                    System.Console.WriteLine(
+                        $"Elevator {Id}: Emergency stop pressed before starting!"
+                    );
                     ct.ThrowIfCancellationRequested();
                 }
                 Console.WriteLine($"Elevator {Id} is moving from {CurrentFloor} to {NextFloor}");
@@ -175,7 +187,9 @@ namespace ElevatorController
                     ct = _tokenSource.Token;
                     if (ct.IsCancellationRequested)
                     {
-                        System.Console.WriteLine($"Elevator {Id}: Emergency stop pressed while moving!");
+                        System.Console.WriteLine(
+                            $"Elevator {Id}: Emergency stop pressed while moving!"
+                        );
                         return;
                     }
                 }
@@ -188,32 +202,34 @@ namespace ElevatorController
                 {
                     CurrentFloor--;
                 }
-                
             }
 
             State = ElevatorState.DoorOpen;
             Console.WriteLine($"Elevator {Id} has arrived at {CurrentFloor}. Door is open");
-            
+
             for (int i = 0; i < ElevatorController.DoorOpenTimeInSeconds; i++)
             {
                 Thread.Sleep(1000);
                 var ct = _tokenSource.Token;
                 if (ct.IsCancellationRequested)
                 {
-                    System.Console.WriteLine($"Elevator {Id}: Emergency stop pressed while door open!");
+                    System.Console.WriteLine(
+                        $"Elevator {Id}: Emergency stop pressed while door open!"
+                    );
                     return;
                 }
             }
-
+            // If there are more floors in the current direction queue, send the elevator to the next floor
             if (DestinationFloors.TryDequeue(out int nextFloor))
             {
                 NextFloor = nextFloor;
                 State = ElevatorState.Moving;
                 MoveElevator();
             }
+            // No more floors in the current directions queue. Process the next directions queue, if any
             else
             {
-                while(NextDirectionDestinationFloors.TryDequeue(out int nextDirectionFloor))
+                while (NextDirectionDestinationFloors.TryDequeue(out int nextDirectionFloor))
                 {
                     DestinationFloors.Enqueue(nextDirectionFloor);
                 }
@@ -222,9 +238,11 @@ namespace ElevatorController
                     NextFloor = nextDestinationFloor;
                     MoveElevator();
                 }
+                // No more floors to process.
                 else
                 {
                     State = ElevatorState.Idle;
+                    SetDirection();
                     Console.WriteLine($"Elevator {Id} is idle");
                 }
             }
@@ -247,11 +265,7 @@ namespace ElevatorController
             {
                 Direction = Direction.Down;
             }
-            else if (CurrentFloor == NextFloor && State != ElevatorState.Idle)
-            {
-                return;
-            }
-            else
+            else if (State == ElevatorState.Idle)
             {
                 Direction = Direction.Stationary;
             }
