@@ -1,6 +1,9 @@
-public enum Direction
+namespace ElevatorController
 {
-    Up,
-    Down,
-    Stationary
+    public enum Direction
+    {
+        Up,
+        Down,
+        Stationary
+    }
 }

@@ -4,7 +4,7 @@ public class ElevatorController
 {
     public static int ElevatorSpeedInSecondsPerFloor { get; private set; }
     public static int DoorOpenTimeInSeconds { get; private set; }
-    public List<Elevator> Elevators { get; set; } = new();
+    public List<Elevator> Elevators { get; set; }
 
     public ElevatorController(
         List<Elevator> elevators,
@@ -29,9 +29,7 @@ public class ElevatorController
         var direction = up ? Direction.Up : Direction.Down;
         //Find the closest idle elevator
         Elevator? closestIdleElevator = Elevators
-            .Where(x => x.State == ElevatorState.Idle)
-            .OrderBy(x => Math.Abs(x.CurrentFloor - floor))
-            .FirstOrDefault();
+            .Where(x => x.State == ElevatorState.Idle).MinBy(x => Math.Abs(x.CurrentFloor - floor));
         // Find the closest elevator that is moving in the same direction and has not passed the requested floor
         Elevator? closestMovingElevator = Elevators
             .Where(
@@ -42,13 +40,9 @@ public class ElevatorController
                             ? x.CurrentFloor - floor > 0
                             : x.CurrentFloor - floor < 0
                     )
-            )
-            .OrderBy(
-                x => x.Direction == Direction.Down ? x.CurrentFloor - floor : floor - x.CurrentFloor
-            )
-            .FirstOrDefault();
+            ).MinBy(x => x.Direction == Direction.Down ? x.CurrentFloor - floor : floor - x.CurrentFloor);
         // Check if the closest idle elevator is closer than the closest moving elevator and retun the one that is closest
-        int distancetoIdleElevator =
+        int distanceToIdleElevator =
             closestIdleElevator != null
                 ? Math.Abs(closestIdleElevator.CurrentFloor - floor)
                 : int.MaxValue;
@@ -59,7 +53,7 @@ public class ElevatorController
 
         if (closestIdleElevator != null || closestMovingElevator != null)
         {
-            return distancetoIdleElevator < distanceToMovingElevator
+            return distanceToIdleElevator < distanceToMovingElevator
                 ? closestIdleElevator!
                 : closestMovingElevator!;
         }
@@ -86,25 +80,63 @@ public class ElevatorController
             .Key;
     }
 
-    public int GetEstimatedTimeOfArrival(Elevator elevator, int floor)
+    public int GetEstimatedTimeOfArrival(Elevator elevator, int floor, bool wantedDirectionUp)
     {
-        if (elevator.State == ElevatorState.Idle)
+        // If the elevator is idle or next floor is the same as we are calculating,
+        // the estimated time of arrival is the time it takes to get to the floor
+        if (elevator.State == ElevatorState.Idle || elevator.NextFloor == floor)
         {
             return Math.Abs(elevator.CurrentFloor - floor) * ElevatorSpeedInSecondsPerFloor;
         }
-        else if (elevator.NextFloor == floor)
+
+        // We need to calculate all stops made by the elevator before it reaches the floor
+        // And also all floors travelled. 
+        var tempDestinationFloors = elevator.DestinationFloors.ToList();
+        int timeToFloor =
+        (
+            Math.Abs(elevator.CurrentFloor - elevator.NextFloor)
+            * ElevatorSpeedInSecondsPerFloor
+        ) + DoorOpenTimeInSeconds;
+        var previousFloor = elevator.NextFloor;
+        int numStops = 0;
+        if (elevator.Direction == Direction.Up && wantedDirectionUp)
         {
-            return Math.Abs(elevator.CurrentFloor - floor) * ElevatorSpeedInSecondsPerFloor;
+            numStops = tempDestinationFloors.Count(x => x > previousFloor && x < floor);
+            var numFloorTravels = tempDestinationFloors.Max() - previousFloor;
+            timeToFloor +=
+                (numFloorTravels * ElevatorSpeedInSecondsPerFloor)
+                + (numStops * DoorOpenTimeInSeconds);
         }
-        else
+        if (elevator.Direction == Direction.Down && !wantedDirectionUp)
         {
-            // var tempDestinationFloors = elevator.DestinationFloors.ToList();
-            return (
-                    Math.Abs(elevator.CurrentFloor - elevator.NextFloor)
-                    * ElevatorSpeedInSecondsPerFloor
-                )
-                + DoorOpenTimeInSeconds
-                + (Math.Abs(elevator.NextFloor - floor) * ElevatorSpeedInSecondsPerFloor);
+            numStops = tempDestinationFloors.Count(x => x < previousFloor && x > floor);
+            var numFloorTravels = previousFloor - tempDestinationFloors.Min();
+            timeToFloor +=
+                (numFloorTravels * ElevatorSpeedInSecondsPerFloor)
+                + (numStops * DoorOpenTimeInSeconds);
         }
+        if (elevator.Direction == Direction.Up && !wantedDirectionUp)
+        {
+            numStops += tempDestinationFloors.Count(x => x > previousFloor);
+            var otherDirection = elevator.NextDirectionDestinationFloors.ToList();
+            numStops += otherDirection.Count(x => x > floor);
+            var numFloorTravels = tempDestinationFloors.Count == 0 ? 0 : tempDestinationFloors.Max() - previousFloor;
+            numFloorTravels += tempDestinationFloors.Count == 0 ? previousFloor - floor : tempDestinationFloors.Max() - floor;
+            timeToFloor +=
+                (numFloorTravels * ElevatorSpeedInSecondsPerFloor)
+                + (numStops * DoorOpenTimeInSeconds);
+        }
+        if (elevator.Direction == Direction.Down && wantedDirectionUp)
+        {
+            numStops += tempDestinationFloors.Count(x => x < previousFloor);
+            var otherDirection = elevator.NextDirectionDestinationFloors.ToList();
+            numStops += otherDirection.Count(x => x < floor);
+            var numFloorTravels = tempDestinationFloors.Count == 0 ? 0 : previousFloor - tempDestinationFloors.Min();
+            numFloorTravels += tempDestinationFloors.Count == 0 ? floor - previousFloor : floor - tempDestinationFloors.Min();
+            timeToFloor +=
+                (numFloorTravels * ElevatorSpeedInSecondsPerFloor)
+                + (numStops * DoorOpenTimeInSeconds);
+        }
+        return timeToFloor;
     }
 }

@@ -5,12 +5,12 @@ namespace ElevatorController
     public class Elevator
     {
         public int Id { get; set; }
-        public int CurrentFloor { get; set; }
+        public int CurrentFloor { get; private set; }
         public ConcurrentQueue<int> DestinationFloors { get; set; } = new();
         public ConcurrentQueue<int> NextDirectionDestinationFloors { get; set; } = new();
         public Direction Direction { get; private set; } = Direction.Stationary;
         public ElevatorState State { get; set; } = ElevatorState.Idle;
-        public int NextFloor { get; set; }
+        public int NextFloor { get; private set; }
         private static readonly CancellationTokenSource _tokenSource = new();
 
         public Elevator(int id, int currentFloor = 1)
@@ -144,7 +144,7 @@ namespace ElevatorController
             }
         }
 
-        private List<int> MergeFloors(List<int> floors)
+        private List<int> MergeFloors(IEnumerable<int> floors)
         {
             List<int> tempFloors = new();
             while (DestinationFloors.TryDequeue(out int floor))

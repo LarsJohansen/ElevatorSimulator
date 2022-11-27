@@ -65,7 +65,7 @@ public class ElevatorController_SingleElevator
         _elevatorController.Elevators = new List<Elevator>() { elevator1 };
 
         // Assert
-        Assert.Equal(2, _elevatorController.GetEstimatedTimeOfArrival(elevator1, 5));
+        Assert.Equal(2, _elevatorController.GetEstimatedTimeOfArrival(elevator1, 5, true));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class ElevatorController_SingleElevator
         var elevator1 = new Elevator(1, 3);
         _elevatorController.Elevators = new List<Elevator>() { elevator1 };
         // Assert
-        Assert.Equal(2, _elevatorController.GetEstimatedTimeOfArrival(elevator1, 5));
+        Assert.Equal(2, _elevatorController.GetEstimatedTimeOfArrival(elevator1, 5, true));
     }
 
     [Fact]
@@ -88,7 +88,21 @@ public class ElevatorController_SingleElevator
         elevator1.AddDestinationFloor(3, true);
         _elevatorController.CallElevator(4, true);
         // Assert
-        Assert.Equal(3, _elevatorController.GetEstimatedTimeOfArrival(elevator1, 4));
+        Assert.Equal(3, _elevatorController.GetEstimatedTimeOfArrival(elevator1, 4, true));
+    }
+
+    [Fact]
+    public void GetEstimatedTimeOfArrival_To4GoingDownWhileElevatorGoingUp_Shouldbe()
+    {
+        // 4 stops, 8 floors to travel. 1 second per stop, 1 second per floor. 4  + 8 = 12 seconds
+        // Arrange
+        var elevator1 = new Elevator(1, 2);
+        _elevatorController.Elevators = new List<Elevator>() { elevator1 };
+        //Act
+        elevator1.AddDestinationFloors(new List<int>() { 3, 5, 7 }, true);
+        elevator1.AddDestinationFloor(6, false);
+        // Assert
+        Assert.Equal(12, _elevatorController.GetEstimatedTimeOfArrival(elevator1, 4, false));
     }
 
     [Fact]
